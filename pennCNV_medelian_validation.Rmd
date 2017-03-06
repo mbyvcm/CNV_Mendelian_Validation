@@ -1,0 +1,51 @@
+---
+title: "pennCNV_mendelian_validation"
+author: "Christopher Medway"
+date: "06/03/2017"
+output: pdf_document
+---
+
+```{r, setup}
+library(GenomicRanges)
+source('./functions.R')
+
+# directory of filtered pennCNV calls
+mother   <- "./mothers.hh660.filtered.penncnv"
+father   <- "./fathers.hg19hmcexome.hg18.filtered.penncnv"
+children <- "./children_filtered.cnv"
+```
+
+```{r, functions}
+# read & generate list object for each member of trio 
+ml <- penncnv_to_list(mother)
+fl <- penncnv_to_list(father)
+cl <- penncnv_to_list(children)
+
+# identify childrens samples which also have both mother and father CNV calls
+childrenALN <- names(cl)
+motherALN   <- names(ml)
+fatherALN   <- names(fl)
+cfALN <- childrenALN[childrenALN %in% fatherALN]
+cmALN <- childrenALN[childrenALN %in% motherALN]
+cmfALN <- cmALN[cmALN %in% cfALN]
+```
+
+```{r,}
+# run validation and append names to list object
+output <- lapply(cmfALN, run_validation, cl,ml,fl)
+names(output) <- cmfALN
+
+# plot histogram of fraction of mendelian validated CNVs
+hist(
+  unlist(lapply(names(output), function(x) sum(output[[x]][,'mat'] + output[[x]][,'pat'] > 0) / dim(output[[x]])[1])),
+  ylab = "number of children",
+  xlab = "fraction of childs CNVs found in either mother of father",
+  main = "pennCNV: CNV QC using mendelian transmission in trios"
+  )
+
+# write output csv table
+df <- data.frame(do.call(rbind, output), row.names = NULL)
+df$mat <- round(df$mat, digits = 2)
+df$pat <- round(df$pat, digits = 2)
+write.table(df, './penncnv_mendelian_validation.csv', quote = F, row.names = F, sep = ",")
+``` 
